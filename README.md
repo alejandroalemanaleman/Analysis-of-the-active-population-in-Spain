@@ -13,7 +13,9 @@ Este proyecto se orienta hacia varios objetivos clave que buscan mejorar la comp
 - Técnico: Introduce técnicas avanzadas de análisis de datos y visualización, incluyendo el desarrollo de un dashboard interactivo que facilita la accesibilidad y utilidad de la información. Este enfoque no solo mejora la comprensión de las tendencias laborales por parte de los usuarios, sino que también permite a los analistas y responsables políticos realizar seguimientos en tiempo real y ajustar las estrategias según sea necesario. 
 - Científico: Avanza el campo del análisis laboral mediante la integración de modelos predictivos y técnicas estadísticas avanzadas, ampliando nuestro entendimiento sobre la efectividad de las políticas de empleo. Al evaluar el impacto a largo plazo de estas políticas, el proyecto contribuye al cuerpo de conocimiento existente y fomenta el desarrollo de nuevas teorías y metodologías en el estudio del mercado laboral.
 
+## Descripción
 
+En el archivo HTML 'Memoria' se encuentra el análisis realizado con R Studio y detalles adicionales sobre la ejecución del proyecto. Para utilizar el panel de control, es necesario tener instalado R Studio y los archivos 'datos.zip' y 'PoblacionActivaCuadroDeMando4.Rmd' (guardados dentro de la carpeta 'datos'). Una vez hecho esto, solo debe ejecutar 'run' en 'PoblacionActivaCuadroDeMando4.Rmd' para utilizar el cuadro de mandos correctamente. En caso de no poder ejecutar el panel de control, a continuación se muestran capturas de pantalla que ilustran lo que debería ver.
 
 ![Captura de pantalla 2024-07-01 a las 17 32 54](https://github.com/alejandroalemanaleman/Analysis-of-the-active-population-in-Spain/assets/145342887/86ae45e6-cbc4-4b04-ad1d-61be24175ecf)
 
