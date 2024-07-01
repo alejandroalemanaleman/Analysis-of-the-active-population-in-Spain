@@ -1,0 +1,1069 @@
+---
+title: "Población activa en España"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+runtime: shiny
+---
+
+```{r,echo=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE,
+  message = FALSE,
+  echo=FALSE
+)
+```
+
+```{r, echo = FALSE,message = FALSE,warning = FALSE}
+library(MASS)
+library(shinydashboard)
+library(datasets)
+library(highcharter) 
+library(fpp3)
+library(RColorBrewer)
+library(openxlsx)  
+library(leaflet)  
+library(geojsonio)
+library(plotly)
+library(ggplot2)
+library(tidyverse)
+library(pxR)
+library(knitr)
+```
+
+
+
+```{css, echo=FALSE}
+body {
+  background-color: #ebe8e4; 
+}
+
+.navbar {
+  background-color: #ada79a; 
+}
+```
+
+```{r}
+poblacion_activa <-read.px("poblacion-activa_tasas.px") %>%
+  as_tibble() %>%
+  mutate(Periodo = yq(Periodo))
+
+poblacion_ocupada <-read.px("poblacion-ocupada_tasas.px") %>%
+  as_tibble() %>%
+  mutate(Periodo = yq(Periodo))
+
+poblacion_parada <-read.px("poblacion-parada_tasas.px") %>%
+  as_tibble() %>%
+  mutate(Periodo = yq(Periodo))
+
+
+tasa_respecto_pob_activa <- poblacion_parada %>%
+  mutate(ocupada = 100 - value) %>%
+  dplyr::rename(parada = value) 
+
+tasa_respecto_pob_mayor16 <- poblacion_activa %>%  
+  mutate(inactiva = 100 - value) %>%
+  dplyr::rename(activa = value)  
+
+# campo para seleccionar países
+locations <- levels(as.factor(poblacion_activa$Comunidades.y.Ciudades.Autónomas))
+#substr(as.character(poblacion_activa$Comunidades.y.Ciudades.Autónomas), 4, nchar(as.character(poblacion_activa$Comunidades.y.Ciudades.Autónomas)))
+
+# campo para seleccionar años
+cuatrimestres <- levels(as.factor(poblacion_activa$Periodo))
+
+# campo para seleccionar sexo
+sexos <- levels(as.factor(poblacion_activa$Sexo))
+
+# campo para seleccionar edad
+edades <- levels(as.factor(poblacion_activa$Edad)) 
+
+poblacion_activa_mapa <-read.px("poblacion-activa_tasas copia.px") %>%
+  as_tibble() %>%
+  mutate(Periodo = yq(Periodo)) %>%
+  filter(Comunidades.y.Ciudades.Autónomas != "Melilla") 
+
+poblacion_ocupada_mapa <-read.px("poblacion-parada_tasas copia.px") %>%
+  as_tibble() %>%
+  mutate(Periodo = yq(Periodo)) %>%
+  mutate(ocupada = 100 - value) %>%
+  select(-value) %>%
+  dplyr::rename(value = ocupada) %>%
+  filter(Comunidades.y.Ciudades.Autónomas != "Melilla") 
+
+poblacion_ocupada_mapa_mayor16 <-read.px("poblacion-ocupada_tasas copia.px") %>%
+  as_tibble() %>%
+  mutate(Periodo = yq(Periodo)) %>%
+  filter(Comunidades.y.Ciudades.Autónomas != "Melilla") 
+
+poblacion_parada_mapa <-read.px("poblacion-parada_tasas copia.px") %>%
+  as_tibble() %>%
+  mutate(Periodo = yq(Periodo)) %>%
+  filter(Comunidades.y.Ciudades.Autónomas != "Melilla") 
+
+
+geoj <- geojson_read("geo_spain_autonomias.geojson",  what = "sp")
+geoj.tibble <- geoj %>% 
+  as_tibble()
+
+join_activa <- left_join(geoj.tibble,poblacion_activa_mapa,join_by(NAME_1==Comunidades.y.Ciudades.Autónomas))
+join_ocupada <- left_join(geoj.tibble,poblacion_ocupada_mapa,join_by(NAME_1==Comunidades.y.Ciudades.Autónomas))
+join_ocupada_pob16 <- left_join(geoj.tibble,poblacion_ocupada_mapa_mayor16,join_by(NAME_1==Comunidades.y.Ciudades.Autónomas))
+join_parada <- left_join(geoj.tibble,poblacion_parada_mapa,join_by(NAME_1==Comunidades.y.Ciudades.Autónomas))
+
+
+parados_nivel_de_formacion_ts <- pxR::read.px("parados_nivel_de_formacion_ts.px") %>% as_tibble()
+parados_nivel_de_formacion_abs <- pxR::read.px("parados_nivel_de_formacion_abs.px") %>% as_tibble()
+
+filt <- parados_nivel_de_formacion_ts %>% filter(Periodo== "2023T4" & Nivel.de.formación.alcanzado != "Total" & Comunidades.y.Ciudades.Autónomas == "Total Nacional" & Sexo == "Ambos sexos")
+
+
+
+parados_nivel_de_formacion_abs <- parados_nivel_de_formacion_abs %>%
+  dplyr::mutate(
+    Nivel.de.formación.alcanzado = dplyr::case_when(
+      Nivel.de.formación.alcanzado == "Segunda etapa de educación secundaria con orientación profesional (incluye educación postsecundaria no superior)" ~ "Segunda etapa de ESO con orientación profesional",
+      Nivel.de.formación.alcanzado == "Segunda etapa de educación secundaria, con orientación general" ~ "Segunda etapa de ESO con orientación general",
+      TRUE ~ Nivel.de.formación.alcanzado
+    )
+  ) 
+
+parados_nivel_de_formacion_ts <- parados_nivel_de_formacion_ts %>%
+  mutate(
+    Nivel.de.formación.alcanzado = dplyr::case_when(
+      Nivel.de.formación.alcanzado == "Segunda etapa de educación secundaria con orientación profesional (incluye educación postsecundaria no superior)" ~ "Segunda etapa de ESO con orientación profesional",
+      Nivel.de.formación.alcanzado == "Segunda etapa de educación secundaria, con orientación general" ~ "Segunda etapa de ESO con orientación general",
+      TRUE ~ Nivel.de.formación.alcanzado
+    )
+  ) 
+
+tiempo_busqueda <- read.px("tiempo_busqueda_parada.px") %>%
+  as_tibble()
+
+```
+
+
+
+
+
+```{css, echo=FALSE}
+.info-box {
+    padding: 8px;
+    border-radius: 10px;
+    background-color: #f8f9fa;
+    border-left: 5px solid #007bff;
+    margin-bottom: 10px;
+    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.1);
+}
+
+.info-box h4 {
+    margin-top: 0;
+    font-size: 18px;
+}
+
+.info-box h3 {
+    margin-top: 0;
+    font-size: 18px;
+}
+
+.info-box p {
+    font-size: 16px;
+    color: #666;
+}
+
+.fa {
+    margin-right: 10px;
+    color: #007bff;
+}
+```
+
+Inicio
+=====================================  
+
+## Column
+
+###
+
+<div class="info-box">
+  <h4><i class="fa fa-info-circle" aria-hidden="true"></i> Población activa</h4>
+  <p>El conjunto de personas que están disponibles para trabajar, es decir, que tienen edad y disposición para trabajar. Esto incluye tanto a las personas que están empleadas como a las que están buscando activamente trabajo.</p>
+</div>
+
+<div class="info-box">
+  <h4><i class="fa fa-line-chart" aria-hidden="true"></i> Población ocupada</h4>
+  <p>Es la parte de la población activa que está trabajando, es decir, que tiene un empleo.</p>
+</div>
+<div class="info-box">
+  <h4><i class="fa fa-calendar-plus-o" aria-hidden="true"></i> Población parada</h4>
+  <p>Representa a aquellos individuos de la población activa que están buscando empleo activamente pero no consiguen trabajo.</p>
+</div>
+### 
+<img src="1.jpg" alt="Descripción de la imagen">
+
+## Column
+
+### 
+<div>
+  <h3><i class="fa fa-line-chart" aria-hidden="true"></i> ¿Cómo son representadas estas poblaciones?</h3>
+   <img src="2.png" alt="Descripción de la imagen" height =225 width = 500>
+</div>
+
+### 
+
+<div>
+  <h3><i class="fa fa-line-chart" aria-hidden="true"></i> Información a tener en cuenta</h3>
+  <p>Existe una ambigüedad cuando se discute la tasa de ocupación, ya que diferentes fuentes calculan esta métrica de dos maneras distintas. El Instituto Nacional de Estadística (INE) la determina en relación con la población mayor de 16 años, mientras que muchos otros expertos y medios la calculan con respecto a la población activa. Por consiguiente, algunas gráficas pueden presentar las tasas de empleo en relación con la población activa o la población mayor de 16 años. Si una gráfica simplemente menciona la "tasa de población ocupada", generalmente se refiere a la población activa, a menos que se especifique lo contrario. Esta distinción es crucial, ya que ambas mediciones no representan lo mismo.</p>
+</div>
+
+
+
+Mapa coroplético {data-navmenu="Comparar CCAA"}
+=====================================  
+    
+    
+Column {.sidebar data-width=270}
+--------------------------------------------------
+
+```{r}
+selectInput(
+  "poblacion", 
+  label = "Población:",
+  choices = c("Activa", "Ocupada", "Ocupada respecto pob > 16 años", "Parada"), 
+  selected = "Activa"
+)
+```
+
+```{r}
+selectInput(
+  "date", 
+  label = "Fecha:",
+  choices = cuatrimestres, 
+  selected = "2023-10-01"
+)
+```
+
+```{r}
+selectInput(
+  "sexo", 
+  label = "Sexo:",
+  choices = sexos,
+  selected = "Ambos Sexos"
+)
+```
+
+```{r}
+selectInput(
+  "edad", 
+  label = "Edad:",
+  choices = edades,
+  selected = "Total"
+)
+```
+
+###
+
+```{r}
+renderTable({
+  
+if (input$poblacion == "Activa") {
+  filtrado <- join_activa %>%
+    filter(Edad == input$edad,
+           Sexo == input$sexo,
+           Periodo == input$date)
+}
+  
+if (input$poblacion == "Ocupada") {
+filtrado <- join_ocupada %>%
+  filter(Edad == input$edad,
+         Sexo == input$sexo,
+         Periodo == input$date)
+}
+  
+if (input$poblacion == "Ocupada respecto pob > 16 años") {
+filtrado <- join_ocupada_pob16 %>%
+  filter(Edad == input$edad,
+         Sexo == input$sexo,
+         Periodo == input$date)
+}
+  
+if (input$poblacion == "Parada") {
+filtrado <- join_parada %>%
+  filter(Edad == input$edad,
+         Sexo == input$sexo,
+         Periodo == input$date)
+}
+  
+tabla <- filtrado %>%
+  select(NAME_1, value) %>%
+  dplyr::rename(`Comunidad autónoma` = NAME_1, Tasa = value)
+tabla
+})
+```
+
+   
+Column
+-------------------------------------
+   
+### 
+
+```{r} 
+leaflet::renderLeaflet({
+
+if (input$poblacion == "Activa") {
+  filtrado <- join_activa %>%
+    filter(Edad == input$edad,
+           Sexo == input$sexo,
+           Periodo == input$date)
+} 
+if (input$poblacion == "Ocupada") {
+filtrado <- join_ocupada %>%
+  filter(Edad == input$edad,
+         Sexo == input$sexo,
+         Periodo == input$date)
+} 
+if (input$poblacion == "Ocupada respecto pob > 16 años") {
+filtrado <- join_ocupada_pob16 %>%
+  filter(Edad == input$edad,
+         Sexo == input$sexo,
+         Periodo == input$date)
+}
+if (input$poblacion == "Parada") {
+filtrado <- join_parada %>%
+  filter(Edad == input$edad,
+         Sexo == input$sexo,
+         Periodo == input$date)
+}
+
+etiquetas <-paste("<strong> ",filtrado$NAME_1 ,":</strong><br> ", filtrado$value) %>%
+  lapply(htmltools::HTML)
+
+
+geoj %>%
+  leaflet::leaflet() %>%  
+  leaflet::addPolygons(label = etiquetas,weight = 0.5)
+
+
+
+
+pal <- leaflet::colorQuantile("YlOrRd", filtrado$value, n = 9)
+geoj %>%
+  leaflet::leaflet() %>%  
+  leaflet::setView(lng =-3, lat = 36, zoom = 5.4) %>% 
+  leaflet::addPolygons(
+    fillColor = ~pal(filtrado$value), 
+    weight = 2,
+    opacity = 1,
+    color = "white",
+    dashArray = "3",
+    fillOpacity = 0.7,
+    highlightOptions = leaflet::highlightOptions( 
+      weight = 2,
+      color = rgb(0.2,0.2,0.2),
+      dashArray = "",
+      fillOpacity = 0.7,
+      bringToFront = TRUE
+    ),
+    label = etiquetas 
+  ) %>% 
+  leaflet::addControl("Tasa de población", position = "topright") %>% 
+  leaflet::addLegend("topright", pal = pal, values = filtrado$value,
+                     title = " ", #input$indicator,
+                     labFormat = function(type, cuts, p) {
+                       n = length(cuts) 
+                       x = (cuts[-n] + cuts[-1])/2
+                       x=prettyNum(round(x,digits=2), big.mark = ",", scientific = FALSE)
+                       as.character(x)
+                     },
+                     opacity = 1
+  )
+  
+})
+```
+
+
+
+Evolución
+=====================================     
+   
+Column {.sidebar data-width=230}
+--------------------------------------------------
+
+```{r}
+selectInput(
+  "location", 
+  label = "Comunidad o ciudad autónoma:", 
+  choices = c("Todas las comunidades autónomas", locations),  
+  selected = "Total Nacional"  
+)
+```
+
+```{r}
+selectInput(
+  "dateStart", 
+  label = "Fecha comienzo:",
+  choices = cuatrimestres, 
+  selected = "2002-01-01"
+)
+```
+
+```{r}
+selectInput(
+  "dateEnd", 
+  label = "Fecha final:",
+  choices = cuatrimestres, 
+  selected = "2023-10-01"
+)
+```
+
+```{r}
+selectInput(
+  "sexo2", 
+  label = "Sexo:",
+  choices = sexos,
+  selected = "Ambos Sexos"
+)
+```
+
+```{r}
+selectInput(
+  "edad2", 
+  label = "Edad:",
+  choices = edades,
+  selected = "Total"
+)
+```
+
+
+## Column {.tabset}
+---------------------------------
+### Población Activa
+
+
+```{r}
+highcharter::renderHighchart({
+  if (input$location == "Todas las comunidades autónomas"){
+  poblacion_activa_filtrada <- poblacion_activa %>%
+  filter(Sexo == input$sexo2) %>%
+  filter(Edad == input$edad2)}
+  else{
+    poblacion_activa_filtrada <- poblacion_activa %>%
+  filter(Sexo == input$sexo2) %>%
+  filter(Comunidades.y.Ciudades.Autónomas == input$location) %>%
+  filter(Edad == input$edad2)
+  }
+
+  
+ tsibble::tsibble( 
+  date = poblacion_activa_filtrada$Periodo,
+  population = poblacion_activa_filtrada$value,
+  location = poblacion_activa_filtrada$Comunidades.y.Ciudades.Autónomas,
+  index = date,
+  key = location) %>% 
+    filter(date >= input$dateStart & date <= input$dateEnd) %>% 
+    highcharter::hchart("line",hcaes(x = date, y = population, group = location)) %>%
+   hc_title(text = "Población activa")
+})
+```
+
+
+
+### Población Ocupada
+
+```{r}
+highcharter::renderHighchart({
+  
+  if (input$location == "Todas las comunidades autónomas"){
+  poblacion_ocupada_filtrada <- poblacion_ocupada %>%
+  filter(Sexo == input$sexo2) %>%
+  filter(Edad == input$edad2)}
+  else{
+    poblacion_ocupada_filtrada <- poblacion_ocupada %>%
+  filter(Sexo == input$sexo2) %>%
+  filter(Comunidades.y.Ciudades.Autónomas == input$location) %>%
+  filter(Edad == input$edad2)
+  }
+
+  
+ tsibble::tsibble( 
+  date = poblacion_ocupada_filtrada$Periodo,
+  population = poblacion_ocupada_filtrada$value,
+  location = poblacion_ocupada_filtrada$Comunidades.y.Ciudades.Autónomas,
+  index = date,
+  key = location) %>% 
+    filter(date >= input$dateStart & date <= input$dateEnd) %>% 
+    highcharter::hchart("line",hcaes(x = date, y = population, group = location)) %>%
+   hc_title(text = "Población ocupada")
+})
+```
+
+### Población Parada
+
+```{r}
+highcharter::renderHighchart({
+  
+ if (input$location == "Todas las comunidades autónomas"){
+  poblacion_parada_filtrada <- poblacion_parada %>%
+  filter(Sexo == input$sexo2) %>%
+  filter(Edad == input$edad2)}
+  else{
+    poblacion_parada_filtrada <- poblacion_parada %>%
+  filter(Sexo == input$sexo2) %>%
+  filter(Comunidades.y.Ciudades.Autónomas == input$location) %>%
+  filter(Edad == input$edad2)
+  }
+  
+ tsibble::tsibble( 
+  date = poblacion_parada_filtrada$Periodo,
+  population = poblacion_parada_filtrada$value,
+  location = poblacion_parada_filtrada$Comunidades.y.Ciudades.Autónomas,
+  index = date,
+  key = location) %>% 
+    filter(date >= input$dateStart & date <= input$dateEnd) %>% 
+    highcharter::hchart("line",hcaes(x = date, y = population, group = location))  %>%
+   hc_title(text = "Población parada")
+})
+```
+
+
+
+
+Composición de población
+=====================================     
+   
+Column {.sidebar data-width=235}
+--------------------------------------------------
+
+```{r}
+selectInput(
+  "poblacionCirc", 
+  label = "Población:",
+  choices = c("Activa e inactiva", "Ocupada y parada"), 
+  selected = "Activa e inactiva"
+)
+```
+
+
+```{r}
+selectInput(
+  "dateCir", 
+  label = "Fecha:",
+  choices = cuatrimestres, 
+  selected = "2023-10-01"
+)
+```
+
+```{r}
+selectInput(
+  "sexoCir", 
+  label = "Sexo:",
+  choices = sexos,
+  selected = "Ambos Sexos"
+)
+```
+
+```{r}
+selectInput(
+  "edadCir", 
+  label = "Edad:",
+  choices = edades,
+  selected = "Total"
+)
+```
+
+```{r}
+selectInput(
+  "com1", 
+  label = "Comunidad o ciudad autónoma 1:",
+  choices = locations,
+  selected = "Total"
+)
+```
+
+```{r}
+selectInput(
+  "com2", 
+  label = "Comunidad o ciudad autónoma 2:",
+  choices = locations,
+  selected = "03 Asturias, Principado de"
+)
+```
+
+```{r}
+selectInput(
+  "com3", 
+  label = "Comunidad o ciudad autónoma 3:",
+  choices = locations,
+  selected = "13 Madrid, Comunidad de"
+)
+```
+
+## Column {.tabset}
+---------------------------------
+
+```{r}
+plotly::renderPlotly({
+  if (input$poblacionCirc == "Activa e inactiva") {
+p <- tasa_respecto_pob_mayor16 %>%  
+    filter(Periodo==input$dateCir & 
+             Sexo == input$sexoCir & 
+             Edad == input$edadCir  & 
+             Comunidades.y.Ciudades.Autónomas == input$com1) 
+categorias <- c("activa", "inactiva")
+valores <-  c(p$activa, p$inactiva)
+            #color act
+colores <- c("#7ED957", "#FF914D")  
+
+# Crea un gráfico circular interactivo con plotly
+plot_ly(labels = categorias, values = valores,marker = list(colors = colores), type = "pie") %>%
+  layout(title = input$com1,   paper_bgcolor = "#EBE8E4")
+
+}
+ else {
+p <- tasa_respecto_pob_activa %>%  
+    filter(Periodo==input$dateCir & 
+             Sexo == input$sexoCir & 
+             Edad == input$edadCir  & 
+             Comunidades.y.Ciudades.Autónomas == input$com1) 
+categorias <- c("parada", "ocupada")
+valores <-  c(p$parada, p$ocupada)
+colores <- c("#FF5757", "#00BF63")  
+
+# Crea un gráfico circular interactivo con plotly
+plot_ly(labels = categorias, values = valores, marker = list(colors = colores), type = "pie") %>%
+  layout(title = input$com1,   paper_bgcolor = "#EBE8E4")
+ }
+})
+```
+
+
+
+## Column
+```{r}
+plotly::renderPlotly({
+  if (input$poblacionCirc == "Activa e inactiva") {
+p <- tasa_respecto_pob_mayor16 %>%  
+    filter(Periodo==input$dateCir & 
+             Sexo == input$sexoCir & 
+             Edad == input$edadCir  & 
+             Comunidades.y.Ciudades.Autónomas == input$com2) 
+categorias <- c("activa", "inactiva")
+valores <-  c(p$activa, p$inactiva)            #color act
+colores <- c("#7ED957", "#FF914D")  
+
+# Crea un gráfico circular interactivo con plotly
+plot_ly(labels = categorias, values = valores,marker = list(colors = colores), type = "pie") %>%
+  layout(title = input$com2,   paper_bgcolor = "#EBE8E4")
+
+}
+ else {
+p <- tasa_respecto_pob_activa %>%  
+    filter(Periodo==input$dateCir & 
+             Sexo == input$sexoCir & 
+             Edad == input$edadCir  & 
+             Comunidades.y.Ciudades.Autónomas == input$com2) 
+categorias <- c("parada", "ocupada")
+valores <-  c(p$parada, p$ocupada)
+colores <- c("#FF5757", "#00BF63")  
+
+# Crea un gráfico circular interactivo con plotly
+plot_ly(labels = categorias, values = valores, marker = list(colors = colores), type = "pie") %>%
+  layout(title = input$com2,   paper_bgcolor = "#EBE8E4")
+ }
+})
+```
+
+```{r}
+plotly::renderPlotly({
+  if (input$poblacionCirc == "Activa e inactiva") {
+p <- tasa_respecto_pob_mayor16 %>%  
+    filter(Periodo==input$dateCir & 
+             Sexo == input$sexoCir & 
+             Edad == input$edadCir  & 
+             Comunidades.y.Ciudades.Autónomas == input$com3) 
+categorias <- c("activa", "inactiva")
+valores <-  c(p$activa, p$inactiva)
+            #color act
+colores <- c("#7ED957", "#FF914D")  
+
+# Crea un gráfico circular interactivo con plotly
+plot_ly(labels = categorias, values = valores,marker = list(colors = colores), type = "pie") %>%
+  layout(title = input$com3,   paper_bgcolor = "#EBE8E4")
+
+}
+ else {
+p <- tasa_respecto_pob_activa %>%  
+    filter(Periodo==input$dateCir & 
+             Sexo == input$sexoCir & 
+             Edad == input$edadCir  & 
+             Comunidades.y.Ciudades.Autónomas == input$com3)  
+categorias <- c("parada", "ocupada")
+valores <-  c(p$parada, p$ocupada)
+colores <- c("#FF5757", "#00BF63")  
+
+# Crea un gráfico circular interactivo con plotly
+plot_ly(labels = categorias, values = valores, marker = list(colors = colores) ,type = "pie") %>%
+  layout(title = input$com3,   paper_bgcolor = "#EBE8E4")
+ }
+})
+```
+
+
+Gráficos de barras {data-navmenu="Comparar CCAA"}
+=====================================     
+   
+Column {.sidebar data-width=230}
+--------------------------------------------------
+
+
+```{r}
+selectInput(
+  "dateBar", 
+  label = "Fecha:",
+  choices = cuatrimestres, 
+  selected = "2023-10-01"
+)
+```
+
+```{r}
+selectInput(
+  "sexoBar", 
+  label = "Sexo:",
+  choices = sexos,
+  selected = "Ambos Sexos"
+)
+```
+
+```{r}
+selectInput(
+  "edadBar", 
+  label = "Edad:",
+  choices = edades,
+  selected = "Total"
+)
+```
+
+
+
+## Column {.tabset}
+---------------------------------
+###
+
+
+```{r}
+plotly::renderPlotly({
+  
+  
+    filtrado <- tasa_respecto_pob_mayor16 %>%  
+      pivot_longer(c("activa", "inactiva"), names_to = "poblacion", values_to = "value") %>%
+      filter(Periodo == input$dateBar & Edad == input$edadBar & Sexo == input$sexoBar & `Comunidades.y.Ciudades.Autónomas` != "Total Nacional") %>%
+      filter(poblacion == "activa") %>%
+      arrange(desc(value)) %>%
+      mutate(Comunidades.y.Ciudades.Autónomas = substr(as.character(Comunidades.y.Ciudades.Autónomas), 4, nchar(as.character(Comunidades.y.Ciudades.Autónomas)))) %>%
+      ggplot(aes(x=reorder(`Comunidades.y.Ciudades.Autónomas`, -value), y = value, fill = value, 
+                 text = paste(Comunidades.y.Ciudades.Autónomas, ": ", value, "%"))) + 
+      geom_bar(stat = "identity") + labs(x = NULL, y = "Tasa de población activa") + 
+      theme(axis.text = element_text(angle=30, vjust = 0.5, hjust = 1)) + 
+      scale_fill_gradientn(colors = brewer.pal(9, 'YlOrRd'), name = "Tasa de \npoblación (%)") 
+
+    ggplotly(filtrado, tooltip = "text")
+
+})
+```
+
+
+
+
+## Column
+```{r}
+plotly::renderPlotly({
+
+    filtrado <- tasa_respecto_pob_activa %>%  
+  pivot_longer(c("parada", "ocupada"), names_to = "poblacion", values_to = "value") %>%      
+      filter(Periodo == input$dateBar & Edad == input$edadBar & 
+               Sexo == input$sexoBar & 
+               `Comunidades.y.Ciudades.Autónomas` != "Total Nacional") %>%
+      filter(poblacion == "ocupada") %>%
+      arrange(desc(value)) %>%
+      mutate(Comunidades.y.Ciudades.Autónomas = substr(as.character(Comunidades.y.Ciudades.Autónomas), 4, nchar(as.character(Comunidades.y.Ciudades.Autónomas)))) %>%
+      ggplot(aes(x=reorder(`Comunidades.y.Ciudades.Autónomas`, -value), y = value, fill = value, 
+                 text = paste(Comunidades.y.Ciudades.Autónomas, ": ", value, "%"))) + 
+      geom_bar(stat = "identity") + labs(x = NULL, y = "Tasa de población ocupada") + 
+      theme(axis.text = element_text(angle=30, vjust = 0.5, hjust = 1)) + 
+      scale_fill_gradientn(colors = brewer.pal(9, 'YlOrRd'), name = "Tasa de \npoblación (%)") 
+
+    ggplotly(filtrado, tooltip = "text")
+ 
+})
+```
+
+```{r}
+plotly::renderPlotly({
+
+    filtrado <- tasa_respecto_pob_activa %>%  
+      pivot_longer(c("parada", "ocupada"), names_to = "poblacion", values_to = "value") %>%     
+      filter(Periodo == input$dateBar & Edad == input$edadBar & Sexo == input$sexoBar & `Comunidades.y.Ciudades.Autónomas` != "Total Nacional") %>%
+      filter(poblacion == "parada") %>%
+      arrange(desc(value)) %>%
+      mutate(Comunidades.y.Ciudades.Autónomas = substr(as.character(Comunidades.y.Ciudades.Autónomas), 4, nchar(as.character(Comunidades.y.Ciudades.Autónomas)))) %>%
+      ggplot(aes(x=reorder(`Comunidades.y.Ciudades.Autónomas`, -value), y = value, fill = value, 
+                 text = paste(Comunidades.y.Ciudades.Autónomas, ": ", value, "%"))) + 
+      geom_bar(stat = "identity") + labs(x = NULL, y = "Tasa de población parada") + 
+      theme(axis.text = element_text(angle=30, vjust = 0.5, hjust = 1)) + 
+      scale_fill_gradientn(colors = brewer.pal(9, 'YlOrRd'), name = "Tasa de \npoblación (%)") 
+
+    ggplotly(filtrado, tooltip = "text")
+ 
+})
+```
+
+
+Formación alcanzada {data-navmenu="Factores que afectan población activa"}
+=====================================
+  
+  Column {.sidebar data-width=230}
+--------------------------------------------------
+
+<strong>Formación alcanzada</strong>
+
+```{r}
+selectInput(
+  "comunidadformacion", 
+  label = "Comunidad o ciudad autónoma:",
+  choices = locations, 
+  selected = "Total Nacional"
+)
+```
+
+```{r}
+selectInput(
+  "sexoformacion", 
+  label = "Sexo:",
+  choices = sexos,
+  selected = "Ambos Sexos"
+)
+```
+
+```{r}
+selectInput(
+  "year_formacion", 
+  label = "Fecha:",
+  choices = cuatrimestres,
+  selected = "2023-10-01"
+)
+```
+
+## Column 
+
+###
+```{r}
+plotly::renderPlotly({
+  filtrado <- parados_nivel_de_formacion_ts %>%
+    mutate(Periodo = yq(Periodo)) %>%
+    filter(Comunidades.y.Ciudades.Autónomas == input$comunidadformacion & 
+             Periodo == input$year_formacion & Sexo ==  input$sexoformacion &
+             Nivel.de.formación.alcanzado != "Total")
+  
+  categorias <- filtrado$Nivel.de.formación.alcanzado
+  valores <-  filtrado$value
+  colores <- c("#68ED76", "#ED6868")  
+
+  plot_ly(labels = categorias, values = valores ,type = "pie") %>%
+    layout(title = paste0("Población parada según estudios en ", input$year_formacion), margin = list(t = 75))
+})
+```
+
+## Column 
+
+###
+```{r}
+highcharter::renderHighchart({
+  formacion_filtrada <- parados_nivel_de_formacion_ts %>%
+    filter(Nivel.de.formación.alcanzado != "Total") %>%
+    filter(Sexo == input$sexoformacion) %>%
+    filter(Comunidades.y.Ciudades.Autónomas == input$comunidadformacion) %>%
+    mutate(Periodo = yq(Periodo))
+  
+  
+  tsibble::tsibble( 
+    date = formacion_filtrada$Periodo,
+    population = formacion_filtrada$value,
+    location = formacion_filtrada$Nivel.de.formación.alcanzado,
+    index = date,
+    key = location) %>% 
+    highcharter::hchart("line",hcaes(x = date, y = population, group = location)) %>%
+    hc_title(text = "Parados según estudios alcanzados desde 2014 hasta 2023")
+})
+```
+
+
+Tiempo de espera {data-navmenu="Factores que afectan población activa"}
+=====================================
+  
+  Column {.sidebar data-width=230}
+--------------------------------------------------
+
+<strong>Tiempo de espera</strong>
+
+```{r}
+selectInput(
+  "comunidadFactores", 
+  label = "Comunidad o ciudad autónoma:",
+  choices = locations, 
+  selected = "Total Nacional"
+)
+```
+
+```{r}
+selectInput(
+  "sexoFactores", 
+  label = "Sexo:",
+  choices = sexos,
+  selected = "Ambos Sexos"
+)
+```
+
+```{r}
+selectInput(
+  "year_Factores", 
+  label = "Fecha:",
+  choices = cuatrimestres,
+  selected = "2023-10-01"
+)
+```
+  
+
+## Column 
+
+###
+```{r}
+plotly::renderPlotly({
+  p<- tiempo_busqueda %>%  
+        mutate(Periodo = yq(Periodo)) %>%
+    filter(Periodo == input$year_Factores & Sexo == input$sexoFactores  & Comunidades.y.Ciudades.Autónomas == input$comunidadFactores & Tiempo.de.búsqueda.de.empleo!= "Total") 
+  
+  categorias <- p$Tiempo.de.búsqueda.de.empleo
+  valores <- p$value
+  
+  # Crea un gráfico circular interactivo con plotly
+  plot_ly(labels = categorias, values = valores, type = "pie") %>%
+    layout(title = paste0("Parados según tiempo de búsqueda de empleo en ", input$year_Factores),  paper_bgcolor = "#FFFFFF")
+})
+```
+
+## Column 
+
+
+```{r}
+highcharter::renderHighchart({
+  tiempo_busqueda_filtrada <- tiempo_busqueda %>%
+    filter(Tiempo.de.búsqueda.de.empleo != "Total") %>%
+    filter(Sexo == input$sexoFactores) %>%
+    filter(Comunidades.y.Ciudades.Autónomas == input$comunidadFactores) %>%
+    mutate(Periodo = yq(Periodo))
+  
+  
+  tsibble::tsibble( 
+    date = tiempo_busqueda_filtrada$Periodo,
+    population = tiempo_busqueda_filtrada$value,
+    location = tiempo_busqueda_filtrada$Tiempo.de.búsqueda.de.empleo,
+    index = date,
+    key = location) %>% 
+    highcharter::hchart("line",hcaes(x = date, y = population, group = location)) %>%
+    hc_title(text = "Parados por tiempo de búsqueda de empleo desde 2002 hasta 2023")%>%
+    hc_chart(backgroundColor = "#FFFFFF")  
+})
+```
+
+
+
+Predicciones
+=====================================
+  
+Column {.sidebar data-width=230}
+--------------------------------------------------
+
+
+```{r}
+selectInput(
+  "comunidad_pred", 
+  label = "Comunidad o ciudad autónoma:",
+  choices = locations, 
+  selected = "Total Nacional"
+)
+```
+
+```{r}
+selectInput(
+  "sexoPred", 
+  label = "Sexo:",
+  choices = sexos,
+  selected = "Ambos Sexos"
+)
+```
+
+```{r}
+selectInput(
+  "edadPred", 
+  label = "Edad:",
+  choices = edades,
+  selected = "Total"
+)
+```
+
+```{r}
+sliderInput("year_pred", 
+                  label = "Elige cuantos años en adelante:",
+                  min = 1,     # Valor mínimo
+                  max = 10,   # Valor máximo
+                  value = 5)  # Valor inicial
+    
+```
+
+Las líneas marcadas en rojo son excluidas al momento de calcular las predicciones, ya que corresponden a fechas impactadas por crisis económicas, como la crisis del 2008 o la pandemia del COVID-19. Estas exclusiones son cruciales para asegurar la precisión de los modelos predictivos, evitando distorsiones causadas por eventos atípicos que no representan la tendencia general de los datos.
+
+## Column {.tabset}
+---------------------------------
+###
+
+
+```{r}
+shiny::renderPlot({
+  
+  
+   datos_tsibbleocupada_ts <- poblacion_ocupada %>%
+  mutate(Periodo = yearquarter(Periodo)) %>%
+  select(
+    date = Periodo,
+    age = Edad,
+    location = Comunidades.y.Ciudades.Autónomas,
+    sex = Sexo,
+    population = value
+  ) %>%
+  filter(sex == input$sexoPred, age == input$edadPred, location == input$comunidad_pred)
+
+# Convertir a tsibble para modelado, excluyendo periodos específicos
+tsibble_ocupada_ts <- datos_tsibbleocupada_ts %>%
+  as_tsibble(index = date, key = "location") %>%
+  filter(!(date >= yearquarter("2002 Q1") & date < yearquarter("2014 Q4")) &
+         !(date >= yearquarter("2020 Q1") & date < yearquarter("2022 Q1"))) %>%
+  fill_gaps()
+
+# Modelo ARIMA
+fit <- tsibble_ocupada_ts %>%
+  model(ARIMA(population))
+
+# Reporte del modelo
+
+# Predecir los próximos 5 años
+prediccion <- forecast(fit, h = paste(input$year_pred, " years"))
+
+# Graficar la predicción
+
+
+p<-autoplot(prediccion) +
+  geom_line(data = filter(datos_tsibbleocupada_ts, date >= yearquarter("2002 Q1") & date <= yearquarter("2014 Q4")), aes(x = date, y = population), colour = "red")  + geom_line(data = filter(datos_tsibbleocupada_ts, date >= yearquarter("2014 Q4") & date <= yearquarter("2020 Q1")), aes(x = date, y = population), colour = "blue") + geom_line(data = filter(datos_tsibbleocupada_ts, date >= yearquarter("2020 Q1") & date <= yearquarter("2022 Q1")), aes(x = date, y = population), colour = "red") + geom_line(data = filter(datos_tsibbleocupada_ts, date >= yearquarter("2022 Q1") ), aes(x = date, y = population), colour = "blue") + labs(title = "Predicción de población ocupada en 5 años", y="Tasa de población ocupada", x="Periodo")
+p
+
+})
+```
+
