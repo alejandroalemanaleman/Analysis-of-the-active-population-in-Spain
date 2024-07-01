@@ -17,6 +17,9 @@ Este proyecto se orienta hacia varios objetivos clave que buscan mejorar la comp
 
 En el archivo HTML 'Memoria' se encuentra el análisis realizado con R Studio y detalles adicionales sobre la ejecución del proyecto. Para utilizar el panel de control, es necesario tener instalado R Studio y los archivos 'datos.zip' y 'PoblacionActivaCuadroDeMando4.Rmd' (guardados dentro de la carpeta 'datos'). Una vez hecho esto, solo debe ejecutar 'run' en 'PoblacionActivaCuadroDeMando4.Rmd' para utilizar el cuadro de mandos correctamente. En caso de no poder ejecutar el panel de control, a continuación se muestran capturas de pantalla que ilustran lo que debería ver.
 
+<br><br>
+
+
 ![Captura de pantalla 2024-07-01 a las 17 32 54](https://github.com/alejandroalemanaleman/Analysis-of-the-active-population-in-Spain/assets/145342887/86ae45e6-cbc4-4b04-ad1d-61be24175ecf)
 
 ![Captura de pantalla 2024-07-01 a las 17 33 10](https://github.com/alejandroalemanaleman/Analysis-of-the-active-population-in-Spain/assets/145342887/83fda666-80bb-4512-8a3d-1eb880dd5830)
